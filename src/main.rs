@@ -1,5 +1,4 @@
-use git2::Repository;
-use std::{collections::BTreeMap, error::Error, ffi::OsString, path::Path};
+use std::{collections::BTreeMap, error::Error, ffi::OsString, process::Command};
 
 fn main() {
     let args = std::env::args_os().skip(1).collect::<Vec<_>>();
@@ -12,20 +11,28 @@ fn main() {
 }
 
 fn run(args: &[OsString]) -> Result<BTreeMap<String, usize>, Box<dyn Error>> {
-    let repo = Repository::open(".")?;
-
     let mut counter = BTreeMap::new();
 
     for arg in args {
-        // TODO: Make this faster. It's too slow on files with a lot of history.
-        let blame = repo.blame_file(Path::new(arg), None)?;
+        let output = Command::new("git")
+            .args(&["blame", &arg.to_string_lossy(), "--line-porcelain"])
+            .output()?;
 
-        for hunk in blame.iter() {
-            let count = hunk.lines_in_hunk();
+        let porcelain = std::str::from_utf8(&output.stdout)?;
 
-            let signature = hunk.final_signature();
-            let name = signature.name().unwrap_or("unknown");
-            *counter.entry(name.to_string()).or_insert(0) += count;
+        for line in porcelain.lines() {
+            let parts = line.split_once(' ');
+
+            let (field, value) = match parts {
+                Some(f) => f,
+                None => continue,
+            };
+
+            if field != "author" {
+                continue;
+            }
+
+            *counter.entry(value.to_string()).or_insert(0) += 1;
         }
     }
 
