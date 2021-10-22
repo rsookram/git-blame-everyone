@@ -1,3 +1,4 @@
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{collections::BTreeMap, error::Error, ffi::OsString, process::Command};
 
 fn main() {
@@ -5,36 +6,51 @@ fn main() {
 
     let result = run(&args);
 
-    for (name, count) in result.unwrap().iter() {
+    for (name, count) in result.iter() {
         println!("{} {}", name, count);
     }
 }
 
-fn run(args: &[OsString]) -> Result<BTreeMap<String, usize>, Box<dyn Error>> {
+fn run(args: &[OsString]) -> BTreeMap<String, usize> {
+    args.par_iter()
+        .map(|arg| {
+            let porcelain = blame_porcelain(arg).unwrap();
+
+            count(porcelain)
+        })
+        .reduce(|| BTreeMap::new(), {
+            |mut a, b| {
+                for (name, count) in b {
+                    *a.entry(name).or_insert(0) += count;
+                }
+
+                a
+            }
+        })
+}
+
+fn blame_porcelain(path: &OsString) -> Result<String, Box<dyn Error>> {
+    let output = Command::new("git")
+        .args(&["blame", &path.to_string_lossy(), "--line-porcelain"])
+        .output()?;
+
+    Ok(std::str::from_utf8(&output.stdout).map(|s| s.to_string())?)
+}
+
+fn count(porcelain: String) -> BTreeMap<String, usize> {
     let mut counter = BTreeMap::new();
 
-    for arg in args {
-        let output = Command::new("git")
-            .args(&["blame", &arg.to_string_lossy(), "--line-porcelain"])
-            .output()?;
+    porcelain
+        .lines()
+        .filter(|line| line.starts_with("author "))
+        .map(|line| {
+            let (_, name) = line.split_once(' ').unwrap();
 
-        let porcelain = std::str::from_utf8(&output.stdout)?;
+            name.to_string()
+        })
+        .for_each(|name| {
+            *counter.entry(name).or_insert(0) += 1;
+        });
 
-        for line in porcelain.lines() {
-            let parts = line.split_once(' ');
-
-            let (field, value) = match parts {
-                Some(f) => f,
-                None => continue,
-            };
-
-            if field != "author" {
-                continue;
-            }
-
-            *counter.entry(value.to_string()).or_insert(0) += 1;
-        }
-    }
-
-    Ok(counter)
+    counter
 }
