@@ -11,8 +11,13 @@ fn main() {
 
     let result = run(&args);
 
-    for (name, count) in result.iter() {
-        println!("{} {}", name, count);
+    let mut result = result.into_iter().collect::<Vec<_>>();
+
+    // Order by lines of code descending
+    result.sort_by(|a, b| b.1.cmp(&a.1));
+
+    for (name, count) in result {
+        println!("{}\t{}", count, name);
     }
 }
 
