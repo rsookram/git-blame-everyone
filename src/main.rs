@@ -13,11 +13,7 @@ fn main() {
 
 fn run(args: &[OsString]) -> BTreeMap<String, usize> {
     args.par_iter()
-        .map(|arg| {
-            let porcelain = blame_porcelain(arg).unwrap();
-
-            count(porcelain)
-        })
+        .map(|arg| count_author_lines(arg).unwrap())
         .reduce(|| BTreeMap::new(), {
             |mut a, b| {
                 for (name, count) in b {
@@ -29,15 +25,13 @@ fn run(args: &[OsString]) -> BTreeMap<String, usize> {
         })
 }
 
-fn blame_porcelain(path: &OsString) -> Result<String, Box<dyn Error>> {
+fn count_author_lines(path: &OsString) -> Result<BTreeMap<String, usize>, Box<dyn Error>> {
     let output = Command::new("git")
         .args(&["blame", &path.to_string_lossy(), "--line-porcelain"])
         .output()?;
 
-    Ok(std::str::from_utf8(&output.stdout).map(|s| s.to_string())?)
-}
+    let porcelain = std::str::from_utf8(&output.stdout)?;
 
-fn count(porcelain: String) -> BTreeMap<String, usize> {
     let mut counter = BTreeMap::new();
 
     porcelain
@@ -52,5 +46,5 @@ fn count(porcelain: String) -> BTreeMap<String, usize> {
             *counter.entry(name).or_insert(0) += 1;
         });
 
-    counter
+    Ok(counter)
 }
