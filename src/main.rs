@@ -58,7 +58,7 @@ fn count_author_lines(path: &OsString) -> Result<BTreeMap<String, usize>> {
         .lines()
         .filter(|line| line.starts_with("author "))
         .map(|line| {
-            let (_, name) = line.split_once(' ').unwrap();
+            let (_, name) = line.split_once(' ').expect("line starts with 'author '");
 
             name.to_string()
         })
