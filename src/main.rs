@@ -1,5 +1,10 @@
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::{collections::BTreeMap, error::Error, ffi::OsString, process::Command};
+use std::{
+    collections::BTreeMap,
+    error::Error,
+    ffi::{OsStr, OsString},
+    process::Command,
+};
 
 fn main() {
     let args = std::env::args_os().skip(1).collect::<Vec<_>>();
@@ -27,7 +32,7 @@ fn run(args: &[OsString]) -> BTreeMap<String, usize> {
 
 fn count_author_lines(path: &OsString) -> Result<BTreeMap<String, usize>, Box<dyn Error>> {
     let output = Command::new("git")
-        .args(&["blame", &path.to_string_lossy(), "--line-porcelain"])
+        .args(&[OsStr::new("blame"), path, OsStr::new("--line-porcelain")])
         .output()?;
 
     let porcelain = std::str::from_utf8(&output.stdout)?;
